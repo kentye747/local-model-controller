@@ -1,0 +1,36 @@
+{
+  "paths": {
+    "hermes_app": "/Applications/Hermes.app",
+    "hermes_home": "~/.hermes",
+    "dsh_app": "/Applications/DeepSeek Harness.app",
+    "dsh_source": "~/deepseek-harness",
+    "dsh_home": "~/.dsh",
+    "node": "/usr/local/bin/node",
+    "lms": "~/.lmstudio/bin/lms"
+  },
+  "tensorfold": {
+    "enabled": false,
+    "command": "~/.local/bin/tensorfold",
+    "model_id": "your-model-id",
+    "name": "TensorFold",
+    "key": "tensorfold:default",
+    "base_url": "http://127.0.0.1:18080/v1",
+    "context": 65536,
+    "estimated_bytes": 0,
+    "vision": false
+  },
+  "llama": {
+    "base_url": "",
+    "api_key_env": "LMC_LLAMA_API_KEY",
+    "context": 65536
+  },
+  "remote": {
+    "enabled": false,
+    "ssh_host": "inference-host",
+    "expected_hostname": "inference-host.local",
+    "python": "python3",
+    "probe_path": ".local/share/local-model-controller/probe.py",
+    "gateway_sha256": ""
+  },
+  "history_timezone": ""
+}
