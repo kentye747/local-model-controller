@@ -173,6 +173,30 @@ def lm_snapshot():
 def compact_model(key,name,engine,model_id,url,context,estimate,vision=True):
     return {'id':key,'name':name,'engine':engine,'model_id':model_id,'base_url':url,'context':context,'estimated_bytes':estimate,'vision':vision,'state':'stopped','state_text':'未加载','memory_bytes':None,'memory_kind':'','busy':False,'can_load':True,'can_release':False,'detail':'','error':''}
 
+def llama_load_budget(model_id,reported_weight):
+    """Use actual weights, cached native metadata, or an explicit model budget; never a fixed model guess."""
+    metadata=read_json(ROOT/'model-metadata.json',{}) or {}
+    weight=reported_weight or metadata.get(model_id,0)
+    if reported_weight and metadata.get(model_id)!=reported_weight:
+        metadata[model_id]=reported_weight;save_json(ROOT/'model-metadata.json',metadata)
+    if not weight:
+        import configparser
+        config=configparser.ConfigParser(interpolation=None)
+        config.read(hermes_home()/'runtimes/llamacpp/presets.ini')
+        raw=config.get(model_id,'model',fallback='')
+        if raw:
+            path=pathlib.Path(os.path.expandvars(raw)).expanduser()
+            files=[path]
+            match=re.fullmatch(r'(.+)-(\d{5})-of-(\d{5})\.gguf',path.name)
+            if match:
+                count=int(match[3])
+                files=[path.with_name(f'{match[1]}-{i:05d}-of-{count:05d}.gguf') for i in range(1,count+1)] if 0<count<=64 else []
+            try:
+                if files and all(p.suffix.lower()=='.gguf' and p.is_file() for p in files):weight=sum(p.stat().st_size for p in files)
+            except OSError:pass
+    configured=CONFIG['llama'].get('models',{}).get(model_id,{}).get('estimated_bytes',0)
+    return max(int(weight*1.08+2*2**30) if weight else 0,int(configured))
+
 def models_snapshot(tf,llama,lm):
     models=[]
     m=compact_model(TF_CONFIG['key'],TF_CONFIG['name'],'TensorFold',TF_ID,TF_CONFIG['base_url'],TF_CONFIG['context'],TF_CONFIG['estimated_bytes'],TF_CONFIG['vision'])
@@ -195,7 +219,7 @@ def models_snapshot(tf,llama,lm):
         known=[{'id':s,'value':'unknown','busy':None,'weight':0,'vision':bool(cfg[s].get('mmproj'))} for s in cfg.sections()]
     for item in known:
         mid=item['id']; ready=item['value'] in ('loaded','ready'); loading=item['value']=='loading'
-        m=compact_model('hermes:'+mid,mid,'Hermes · llama.cpp',mid,(llama['root'] or 'http://127.0.0.1:18434')+'/v1',CONFIG['llama']['context'],int(item['weight']*1.08+2*2**30) if item['weight'] else 0,item['vision'])
+        m=compact_model('hermes:'+mid,mid,'Hermes · llama.cpp',mid,(llama['root'] or 'http://127.0.0.1:18434')+'/v1',CONFIG['llama']['context'],llama_load_budget(mid,item['weight']),item['vision'])
         unreadable=bool(llama.get('error') and llama['root'])
         m.update(state='unknown' if unreadable else 'ready' if ready else 'loading' if loading else 'stopped' if llama['root'] else 'offline',state_text='运行时状态未知' if unreadable else ('使用中' if item['busy'] else '已就绪') if ready else '加载中' if loading else '未加载' if llama['root'] else '请先打开 Hermes',busy=item['busy'],can_load=bool(llama['root']) and not unreadable and not ready and not loading,can_release=ready and not unreadable and item['busy'] is False,memory_bytes=item['weight'] if ready else None,memory_kind='权重估算',detail=str(m['context']//1024)+'K 配置上下文')
         models.append(m)

@@ -11,7 +11,7 @@ DEFAULTS = {
     'tensorfold': {'enabled':False, 'command':str(HOME/'.local/bin/tensorfold'), 'model_id':'local-tensorfold',
                    'name':'TensorFold', 'key':'tensorfold:default', 'base_url':'http://127.0.0.1:18080/v1',
                    'context':65536, 'estimated_bytes':0, 'vision':False},
-    'llama': {'base_url':'', 'api_key_env':'LMC_LLAMA_API_KEY', 'context':65536},
+    'llama': {'base_url':'', 'api_key_env':'LMC_LLAMA_API_KEY', 'context':65536, 'models':{}},
     'remote': {'enabled':False, 'ssh_host':'inference-host', 'expected_hostname':'inference-host.local',
                'python':'python3', 'probe_path':'.local/share/local-model-controller/probe.py', 'gateway_sha256':''},
     'history_timezone':''

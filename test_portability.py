@@ -49,6 +49,22 @@ class PortabilityTests(unittest.TestCase):
             c.atomic(c.hermes_home()/'config.yaml',c.yaml.safe_dump(before));c.save_hermes_config({'model':{'default':'next'}})
             now=c.hermes_config();self.assertEqual(now['model']['default'],'next');self.assertEqual(now['browser'],before['browser']);self.assertEqual(now['providers'],before['providers'])
 
+class WeightBudgetTests(unittest.TestCase):
+    def test_unloaded_split_model_uses_complete_weight_set(self):
+        with tempfile.TemporaryDirectory() as td,patch.object(c,'HOME',pathlib.Path(td)),patch.object(c,'ROOT',pathlib.Path(td)/'data'):
+            root=pathlib.Path(td);preset=root/'.hermes/runtimes/llamacpp/presets.ini';preset.parent.mkdir(parents=True)
+            first=root/'fixture-00001-of-00002.gguf';second=root/'fixture-00002-of-00002.gguf'
+            first.write_bytes(b'a'*11);second.write_bytes(b'b'*19)
+            preset.write_text('[fixture]\nmodel = '+str(first)+'\n')
+            self.assertEqual(c.llama_load_budget('fixture',0),int(30*1.08+2*2**30))
+            second.rename(root/'missing-part')
+            self.assertEqual(c.llama_load_budget('fixture',0),0)
+
+    def test_native_weight_metadata_is_reused_without_a_model_specific_guess(self):
+        with tempfile.TemporaryDirectory() as td,patch.object(c,'ROOT',pathlib.Path(td)/'data'),patch.object(c,'HOME',pathlib.Path(td)):
+            self.assertEqual(c.llama_load_budget('fixture',100),int(100*1.08+2*2**30))
+            self.assertEqual(c.llama_load_budget('fixture',0),int(100*1.08+2*2**30))
+
 class LocalizationTests(unittest.TestCase):
     def test_all_source_keys_have_english_translations(self):
         root=pathlib.Path(__file__).parent

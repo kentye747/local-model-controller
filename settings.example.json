@@ -22,7 +22,8 @@
   "llama": {
     "base_url": "",
     "api_key_env": "LMC_LLAMA_API_KEY",
-    "context": 65536
+    "context": 65536,
+    "models": {}
   },
   "remote": {
     "enabled": false,
