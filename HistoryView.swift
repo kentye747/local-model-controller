@@ -196,29 +196,43 @@ struct HistoryView:View {
     }
     private func requests(_ r:UsageHistoryReport)->some View {
         VStack(alignment:.leading,spacing:10) {
-            HStack {
-                Text(L("请求明细")).font(.system(size:14,weight:.semibold));Spacer()
-                Text(r.summary.requests==0 ? L("0 条") : L("\(r.offset+1)–\(r.offset+r.recent.count) / \(r.summary.requests) 条")).font(.system(size:11)).foregroundStyle(.secondary).monospacedDigit()
-                Button(L("上一页")) {c.historyOffset=max(0,r.offset-80)}.disabled(r.offset==0 || c.historyLoading)
-                Button(L("下一页")) {c.historyOffset=r.offset+80}.disabled(r.offset+r.recent.count>=r.summary.requests || c.historyLoading)
-            }
+            requestToolbar(r)
             Text(L("已知日期优先，每页 80 条；点击列标题排序当前页。CSV 包含筛选后的全部记录。")).font(.system(size:10)).foregroundStyle(.secondary)
-            Table(r.recent.sorted(using:local.sortOrder),selection:$local.selection,sortOrder:$local.sortOrder) {
-                TableColumn(L("时间"),value:\.sortTime) {e in Text(e.completedAt.map{date($0)} ?? L("时间不详")).foregroundStyle(e.completedAt==nil ? .secondary : .primary)}.width(min:90,ideal:120)
-                TableColumn(L("模型"),value:\.modelName) {e in Text(e.modelName).lineLimit(1).help(e.modelName)}.width(min:100,ideal:150)
-                TableColumn(L("输入"),value:\.sortInput) {e in Text(integer(e.inputTokens)).monospacedDigit()}.width(min:50,ideal:68)
-                TableColumn(L("输出"),value:\.sortOutput) {e in Text(integer(e.outputTokens)).monospacedDigit()}.width(min:50,ideal:65)
-                TableColumn(L("输出 tok/s"),value:\.sortSpeed) {e in Text(decimal(e.outputTps)).monospacedDigit()}.width(min:65,ideal:85)
-                TableColumn(L("耗时"),value:\.sortDuration) {e in Text(seconds(e.totalSeconds)).monospacedDigit()}.width(min:55,ideal:75)
-                TableColumn(L("结束"),value:\.finishLabel) {e in Text(e.finishLabel).foregroundStyle(e.finishReason=="length" ? .orange : .secondary)}.width(min:65,ideal:80)
-            }.frame(height:280)
-            if let row=r.recent.first(where:{$0.id==local.selection}) {
-                VStack(alignment:.leading,spacing:5) {
-                    Text(L(row.source)+" · "+(row.timeBasis=="native" ? L("原生请求时间") : row.timeBasis=="observed" ? L("控制器采集时间") : L("原始日期不详"))).font(.system(size:11,weight:.medium))
-                    Text(L("输入速度 ")+decimal(row.inputTps)+L(" tok/s  ·  缓存 ")+integer(row.cachedTokens)+L(" token  ·  首 Token ")+seconds(row.ttftSeconds)+L("  ·  排队 ")+seconds(row.queueSeconds)).font(.system(size:11)).monospacedDigit().foregroundStyle(.secondary)
-                }.textSelection(.enabled)
-            }
+            requestTable(r.recent)
+            if let row=r.recent.first(where:{$0.id==local.selection}) {requestDetail(row)}
         }
+    }
+    private func requestToolbar(_ r:UsageHistoryReport)->some View {
+        let pageText=r.summary.requests==0 ? L("0 条") : L("\(r.offset+1)–\(r.offset+r.recent.count) / \(r.summary.requests) 条")
+        return HStack {
+            Text(L("请求明细")).font(.system(size:14,weight:.semibold));Spacer()
+            Text(pageText).font(.system(size:11)).foregroundStyle(.secondary).monospacedDigit()
+            Button(L("上一页")) {c.historyOffset=max(0,r.offset-80)}.disabled(r.offset==0 || c.historyLoading)
+            Button(L("下一页")) {c.historyOffset=r.offset+80}.disabled(r.offset+r.recent.count>=r.summary.requests || c.historyLoading)
+        }
+    }
+    private func requestTable(_ records:[HistoryRecord])->some View {
+        let sorted=records.sorted(using:local.sortOrder)
+        return Table(sorted,selection:$local.selection,sortOrder:$local.sortOrder) {
+            TableColumn(L("时间"),value:\HistoryRecord.sortTime) {(e:HistoryRecord) in Text(e.completedAt.map{date($0)} ?? L("时间不详")).foregroundStyle(e.completedAt==nil ? .secondary : .primary)}.width(min:90,ideal:120)
+            TableColumn(L("模型"),value:\HistoryRecord.modelName) {(e:HistoryRecord) in Text(e.modelName).lineLimit(1).help(e.modelName)}.width(min:100,ideal:150)
+            TableColumn(L("输入"),value:\HistoryRecord.sortInput) {(e:HistoryRecord) in Text(integer(e.inputTokens)).monospacedDigit()}.width(min:50,ideal:68)
+            TableColumn(L("输出"),value:\HistoryRecord.sortOutput) {(e:HistoryRecord) in Text(integer(e.outputTokens)).monospacedDigit()}.width(min:50,ideal:65)
+            TableColumn(L("输出 tok/s"),value:\HistoryRecord.sortSpeed) {(e:HistoryRecord) in Text(decimal(e.outputTps)).monospacedDigit()}.width(min:65,ideal:85)
+            TableColumn(L("耗时"),value:\HistoryRecord.sortDuration) {(e:HistoryRecord) in Text(seconds(e.totalSeconds)).monospacedDigit()}.width(min:55,ideal:75)
+            TableColumn(L("结束"),value:\HistoryRecord.finishLabel) {(e:HistoryRecord) in Text(e.finishLabel).foregroundStyle(e.finishReason=="length" ? .orange : .secondary)}.width(min:65,ideal:80)
+        }.frame(height:280)
+    }
+    private func requestDetail(_ row:HistoryRecord)->some View {
+        let basis=row.timeBasis=="native" ? L("原生请求时间") : row.timeBasis=="observed" ? L("控制器采集时间") : L("原始日期不详")
+        let speed=L("输入速度 ")+decimal(row.inputTps)+" tok/s"
+        let cache=L("缓存token")+" "+integer(row.cachedTokens)
+        let first=L("平均首 Token")+" "+seconds(row.ttftSeconds)
+        let queue=L("平均排队")+" "+seconds(row.queueSeconds)
+        return VStack(alignment:.leading,spacing:5) {
+            Text(L(row.source)+" · "+basis).font(.system(size:11,weight:.medium))
+            Text([speed,cache,first,queue].joined(separator:" · ")).font(.system(size:11)).monospacedDigit().foregroundStyle(.secondary)
+        }.textSelection(.enabled)
     }
     private func decimal(_ v:Double?)->String {v.map{String(format:"%.1f",$0)} ?? "—"}
     private func integer(_ v:Double?)->String {v.map{Int($0).formatted()} ?? "—"}

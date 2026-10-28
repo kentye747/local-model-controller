@@ -95,9 +95,11 @@ class HistoryTests(unittest.TestCase):
     def test_missing_or_invalid_numbers_do_not_become_zero_or_nan(self):
         self.event('bad',input_tokens=float('nan'),output_tps=float('inf'),total_seconds=-1)
         r=self.rows()[0];self.assertIsNone(r['input_tokens']);self.assertIsNone(r['output_tps']);self.assertIsNone(r['total_seconds'])
-    def test_local_day_boundaries_use_shanghai_time(self):
+    def test_local_day_boundaries_respect_selected_timezone(self):
         now=dt.datetime(2026,10,25,16,30,tzinfo=dt.timezone.utc).timestamp()
-        self.assertEqual(h.bounds(1,now),dt.datetime(2026,10,26,tzinfo=h.TZ).timestamp())
+        for zone,day in [(dt.timezone(dt.timedelta(hours=8)),26),(dt.timezone.utc,25)]:
+            with self.subTest(zone=zone),patch.object(h,'TZ',zone):
+                self.assertEqual(h.bounds(1,now),dt.datetime(2026,10,day,tzinfo=zone).timestamp())
         with self.assertRaises(ValueError):h.bounds(2,now)
     def test_import_progress_includes_files_not_read_yet(self):
         p=self.home/'.hermes/logs/llama-server.log';p.parent.mkdir(parents=True);p.write_text('x'*100+'\n')
