@@ -227,8 +227,8 @@ struct HistoryView:View {
         let basis=row.timeBasis=="native" ? L("原生请求时间") : row.timeBasis=="observed" ? L("控制器采集时间") : L("原始日期不详")
         let speed=L("输入速度 ")+decimal(row.inputTps)+" tok/s"
         let cache=L("缓存token")+" "+integer(row.cachedTokens)
-        let first=L("平均首 Token")+" "+seconds(row.ttftSeconds)
-        let queue=L("平均排队")+" "+seconds(row.queueSeconds)
+        let first=L("首token秒数")+" "+seconds(row.ttftSeconds)
+        let queue=L("排队秒数")+" "+seconds(row.queueSeconds)
         return VStack(alignment:.leading,spacing:5) {
             Text(L(row.source)+" · "+basis).font(.system(size:11,weight:.medium))
             Text([speed,cache,first,queue].joined(separator:" · ")).font(.system(size:11)).monospacedDigit().foregroundStyle(.secondary)
