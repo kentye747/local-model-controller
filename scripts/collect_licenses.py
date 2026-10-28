@@ -14,3 +14,6 @@ candidates=list(base.glob('**/LICENSE*'))+list(base.glob('**/COPYING*'))
 for source in candidates:
     if 'site-packages' in source.parts or not source.is_file():continue
     dest=out/'Python'/source.relative_to(base);dest.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(source,dest)
+
+# Preserve notices for statically linked CPython distribution components as well.
+shutil.copytree(pathlib.Path(__file__).resolve().parent.parent/"third_party/python-licenses",out/"PythonDistribution",dirs_exist_ok=True)
