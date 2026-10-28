@@ -1,3 +1,4 @@
+import test_support  # Isolate settings before importing any application module.
 import json, pathlib, sqlite3, tempfile, unittest
 from types import SimpleNamespace
 from unittest.mock import patch

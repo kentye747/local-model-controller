@@ -1,3 +1,4 @@
+import test_support  # Isolate settings before importing any application module.
 import pathlib, unittest
 from unittest.mock import patch
 import local_controller

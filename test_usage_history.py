@@ -1,3 +1,4 @@
+import test_support  # Isolate settings before importing any application module.
 import contextlib,csv,datetime as dt,json,pathlib,sqlite3,tempfile,unittest,os
 from unittest.mock import patch
 import usage_history as h
