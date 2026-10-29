@@ -7,7 +7,7 @@ VERSION="2.5.0"
 ARCH="$(uname -m)"
 if [[ "$ARCH" != arm64 && "$ARCH" != x86_64 ]]; then echo 'macOS arm64 or x86_64 is required.'; exit 1; fi
 "$PYTHON" scripts/prepare_build.py
-"$PYTHON" -m PyInstaller --noconfirm --clean --onedir --name LMCBackend --distpath build/backend --workpath build/pyinstaller --specpath build --paths build/portable-stdlib --paths . --hidden-import activity --hidden-import remote_activity --hidden-import conversation --hidden-import performance --hidden-import usage_history --hidden-import runtime_config --hidden-import websocket --hidden-import configparser --hidden-import zoneinfo --copy-metadata psutil --copy-metadata PyYAML --copy-metadata websocket-client backend_entry.py
+"$PYTHON" -m PyInstaller --noconfirm --clean --onedir --name LMCBackend --distpath build/backend --workpath build/pyinstaller --specpath build --paths build/portable-stdlib --paths . --hidden-import activity --hidden-import remote_activity --hidden-import conversation --hidden-import performance --hidden-import request_attribution --hidden-import usage_history --hidden-import runtime_config --hidden-import websocket --hidden-import configparser --hidden-import zoneinfo --copy-metadata psutil --copy-metadata PyYAML --copy-metadata websocket-client backend_entry.py
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 # dist/ is a generated, ignored directory. Replace only this build's own Backend.
 if [[ -d "$APP/Contents/Resources/Backend" ]]; then mv "$APP/Contents/Resources/Backend" "build/previous-backend-$(date +%s)"; fi

@@ -49,6 +49,8 @@ def connect(root):
       sample_key TEXT PRIMARY KEY,model_key TEXT,at REAL,input_tps REAL,output_tps REAL,
       input_seconds REAL,output_seconds REAL);
     ''')
+    import request_attribution
+    request_attribution.ingest(c,root)
     c.execute("INSERT OR IGNORE INTO meta VALUES('started_at',?)",(str(time.time()),));c.commit()
     return c
 
@@ -340,6 +342,8 @@ def report(root,model='all',days=0,now=None,offset=0):
         recent=[dict(r) for r in c.execute('SELECT * FROM events'+w+' ORDER BY completed_at IS NULL,completed_at DESC,observed_at DESC,event_key LIMIT 80 OFFSET ?',args+[offset])]
         name_by_key={m['id']:m['name'] for m in catalog}
         for r in recent:
+            import request_attribution
+            request_attribution.attach(c,r)
             r['id']=r.pop('event_key');r['model_name']=name_by_key.get(r['model_key'],r['model_key'])
         trend_days=7 if days in (1,7) else 30
         today=dt.datetime.fromtimestamp(now,TZ).date();daily={}
