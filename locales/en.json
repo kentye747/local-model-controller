@@ -406,6 +406,5 @@
   "会话标识": "Session ID",
   "请求标识存在关联冲突，未显示任务。": "Conflicting request attribution; task withheld.",
   "请求标识": "Request ID",
-  "来源主机": "Source host",
-  "调用方请求标识": "Caller request ID"
+  "来源主机": "Source host"
 }

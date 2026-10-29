@@ -124,7 +124,7 @@ def llama_line(c,line,state,at,observed):
         legacy_id=event_id
         if meta:
             event_id=digest('llama-native:'+key+':'+meta['completion_id']+':'+task)
-            c.execute('INSERT OR IGNORE INTO request_completions(event_key,request_id,caller_request_id) VALUES(?,?,?)',(event_id,meta['completion_id'],meta.get('caller_request_id')))
+            c.execute('INSERT OR IGNORE INTO request_completions(event_key,request_id) VALUES(?,?)',(event_id,meta['completion_id']))
             import request_attribution as attribution
             if meta.get('origin') in ('Hermes','DSH') and all(isinstance(meta.get(k),str) and attribution.ID.fullmatch(meta[k]) for k in ('task_id','session_id')):
                 values=(event_id,key,meta['origin'],meta['task_id'],meta['session_id'],meta.get('host',''))
@@ -300,9 +300,9 @@ def capture(root,home,models,memory,max_bytes=LIMIT,sample_stats=True):
                         st=path.stat();identity=kind+':'+str(st.st_dev)+':'+str(st.st_ino)
                         old=c.execute('SELECT state FROM cursors WHERE id=?',(identity,)).fetchone()
                         if old:
-                            state=json.loads(old['state']);state.pop('pending',None);state.pop('requests',None)
-                            with path.open('rb') as f:
-                                f.seek(max(0,st.st_size-2*1024*1024));f.readline();offset=f.tell()
+                            # Re-read in the existing bounded chunks so model-load identities
+                            # cannot be lost when the log is longer than the recent tail.
+                            state={};offset=0
                             c.execute('UPDATE cursors SET offset=?,backfill_until=?,state=? WHERE id=?',(offset,st.st_size,json.dumps(state),identity))
                     c.execute("INSERT INTO meta VALUES('native_identity_backfill_v1','1')")
                 remaining=max_bytes
