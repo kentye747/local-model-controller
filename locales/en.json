@@ -395,5 +395,16 @@
   "\\1[已隐藏]": "\\1[redacted]",
   "时间(本地时区)": "Time (local timezone)",
   "llama.cpp 输入为实际评估 token；TensorFold 输入扣除已缓存 token；LM Studio 按原生报告。平均速度按原生单次均速及处理时长加权，峰值是已记录单次均速，短输出可能偏高。未提供的值显示 —。失败请求未完整提供，不计算失败率。": "llama.cpp input counts evaluated tokens; TensorFold excludes cached input; LM Studio follows native reports. Averages are weighted by processing time and peaks are recorded per-request averages. Short outputs may look faster. Unavailable values show —. Failure reporting is incomplete, so no failure rate is calculated.",
-  "连接设置已打开。": "Connection settings opened."
+  "连接设置已打开。": "Connection settings opened.",
+  "请求来源": "Request origin",
+  "对应任务": "Associated task",
+  "未记录": "Not recorded",
+  "历史统计没有记录请求发起方。": "The history does not record who initiated this request.",
+  "历史统计没有记录可验证的任务关联。": "The history does not record a verified task association.",
+  "请求来源和任务未记录；统计来源不代表请求发起方。": "Request origin and task were not recorded; the statistics source is not the request origin.",
+  "关联冲突": "Conflicting attribution",
+  "会话标识": "Session ID",
+  "请求标识存在关联冲突，未显示任务。": "Conflicting request attribution; task withheld.",
+  "请求标识": "Request ID",
+  "来源主机": "Source host"
 }

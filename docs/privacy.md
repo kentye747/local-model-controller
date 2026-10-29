@@ -11,3 +11,5 @@
 - Closing the app ends its own observer but does not unload model engines. No system daemon or schedule is installed.
 
 For a bug report, start with app version, macOS version, CPU architecture, engine versions and a minimal reproduction. Redact usernames, hosts, keys, task names and paths from any optional diagnostic excerpt.
+
+Optional request tracing retains opaque caller/task/session/completion IDs and hostnames locally. The Hermes and DSH adapters add them only to explicitly local inference destinations; existing SSH forwarding may carry them to the configured local inference host. Prompt and reply bodies are never written by these adapters. Native task titles are read on demand for display and are not persisted in the numeric history database. An uninstrumented engine or caller remains unrecorded instead of being inferred from a nearby task.
