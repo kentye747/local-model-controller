@@ -31,7 +31,11 @@ def local_titles(queries,home=None):
 
 def attach_titles(rows,home):
     from runtime_config import settings
-    queries=[dict(origin=r['request_origin'],session_id=r['session_id']) for r in rows if r.get('attribution_status')=='exact']
+    queries=[]
+    for row in rows:
+        if row.get('attribution_status')!='exact':continue
+        query=dict(origin=row['request_origin'],session_id=row['session_id'])
+        if query not in queries:queries.append(query)
     if not queries:return
     candidates=local_titles(queries,home)
     cfg=settings()['remote']
