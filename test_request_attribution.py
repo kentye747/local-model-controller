@@ -31,6 +31,10 @@ class AttributionTests(unittest.TestCase):
   def next_call(request):calls.append(request);return response
   self.assertIs(self.callback(request={'messages':['PRIVATE']},next_call=next_call,provider='lmstudio',task_id='task-1',session_id='session-1'),response)
   self.assertEqual(len(calls),1);self.assertNotIn('PRIVATE',(self.root/'request-attribution.jsonl').read_text())
+ def test_malformed_types_are_ignored(self):
+  with contextlib.closing(h.connect(self.root)) as c:
+   self.seed(c);self.write([{**self.row(),'model_id':{}},{**self.row(),'engine':[]},{**self.row(),'session_id':None}]);a.ingest(c,self.root)
+   self.assertEqual(c.execute('SELECT count(*) FROM request_attribution').fetchone()[0],0)
  def test_untrusted_journal_is_not_accepted(self):
   with contextlib.closing(h.connect(self.root)) as c:
    self.seed(c);self.write([self.row()]);(self.root/'request-attribution.jsonl').chmod(0o644);a.ingest(c,self.root)

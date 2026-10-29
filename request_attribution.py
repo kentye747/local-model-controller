@@ -23,6 +23,7 @@ def ingest(c,root):
             if not isinstance(r,dict) or r.get('schema')!=1:continue
             key=event_key(r.get('engine'),r.get('request_id'))
             if not key:continue
+            if not isinstance(r.get('model_id'),str) or not r['model_id'] or len(r['model_id'])>300:continue
             if r.get('origin') not in ('Hermes','DSH','Controller'):continue
             if not all(isinstance(r.get(k),str) and ID.fullmatch(r[k]) for k in ('task_id','session_id','host')):continue
             matches=c.execute('SELECT id FROM models WHERE native_id=? AND engine LIKE ?', (r.get('model_id'),r['engine']+'%')).fetchall()
