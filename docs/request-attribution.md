@@ -1,16 +1,25 @@
-# Request attribution (experimental)
+# Request origins and tasks
 
-The controller can display an origin, task ID and session ID when a local caller journal supplies the **same native completion ID** as an imported engine event. It matches the engine, native model ID and completion ID, never time proximity, a busy model, or an active session. Conflicting associations stay withheld. Older events without shared IDs remain unrecorded. This metadata does not create another usage event or change totals.
+Request history can show the caller, task title/ID, native session, source host and completion ID. Association uses the engine's native task-to-completion mapping and caller-supplied native task identity. The controller never joins by nearby timestamps, a busy model or the latest session. Missing and conflicting mappings remain explicitly unrecorded. Old logs without a common identifier cannot be reconstructed reliably.
 
-The optional `integrations/hermes_request_attribution.py` module implements Hermes's `llm_execution` middleware contract. A plugin context must supply `journal_path` pointing at `request-attribution.jsonl` in the controller data directory. The middleware calls downstream once, returns its response unchanged, and records only the returned completion ID/model, Hermes task/session IDs, caller and hostname. Journal failure never retries inference. This adapter is experimental and has not yet passed an actual Hermes UI request acceptance test; it is not installed automatically.
+## llama.cpp b11840
 
-The journal must be an owner-only regular file owned by the controller user, with a maximum size of 8 MiB. Each JSON line has schema=1, engine (`TensorFold` or `LM Studio`), request_id, model_id, origin, task_id, session_id and host. IDs are restricted to letters, digits, underscores, dots, colons and hyphens. No prompts, replies, task titles, URLs, headers or credentials belong in this journal. It is local runtime data and must never be published with the source.
+`integrations/patch_llama_b11840.py` instruments upstream commit `36e36e63a54fc8f85b95e9c499a022b597e478dd`. It verifies the original server source hash before editing. Build with upstream CMake; the result emits one `LMC_REQUEST` JSON metadata marker alongside native task assignment. The marker relates the returned completion ID, internal task number and allowlisted caller/session/task/host headers. It never logs request bodies, prompts, responses or credentials. Existing timing lines keep their original meaning. This is a local instrumentation patch, not an upstream llama.cpp release; keep original binaries for rollback. Updating the managed engine can replace the instrumentation, in which case new request attribution becomes unavailable until an adapted build is verified.
 
-Current coverage:
+## Hermes
 
-- TensorFold and LM Studio: exact-ID import contract and local fixture tests. Live caller integration pending.
-- Hermes: experimental middleware producer; named provider must be `tensorfold` or `lmstudio` (optionally `custom:` prefixed). Alias providers are not guessed.
-- llama.cpp: unsupported until its timing events expose a common completion ID; a slot/task integer is not a completion ID.
-- DSH, other callers and cross-host forwarding: not connected by this change. No claim of complete caller coverage.
+Install `integrations/hermes_trace_headers.py` as `__init__.py` in a native user plugin directory, with a `plugin.yaml` manifest, and enable it with Hermes's normal plugin management. It registers `llm_execution` middleware and adds native task/session/request IDs only for loopback destinations. It calls downstream once and leaves message bodies and responses unchanged. Enable/reload each intended profile; merely placing a file or listing it as enabled is not acceptance. No cloud destination receives these tracing headers.
 
-Task identity is shown as its original ID; no task title is retained. CSV continues to contain the existing numeric usage export. No configuration, plugin activation, network route or schedule is changed by building the controller.
+## DeepSeek Harness
+
+Install `integrations/dsh_trace_headers.mjs` using a native Cordis profile patch **insert** entry. The module uses the native `llm/stream` waterfall and per-call async context to add task/session/request identity only to explicitly allowed loopback origins. It does not rewrite messages. Separate concurrent sessions have separate context. Cloud requests and unrelated fetches are unchanged. The optional diagnosticsPath is for bounded acceptance work only; omit it in normal configuration.
+
+## Remote task titles
+
+Place `history_titles.py` beside the configured remote metadata probe under the name `history_titles_probe.py`. The controller uses its existing configured SSH alias and Python to request at most 80 exact session IDs; the helper reads only native titles, never messages. The response must match the configured expected hostname. Remote failure leaves the original task ID visible and does not reuse an old title. No daemon, tunnel or schedule is installed by this reader.
+
+Titles are resolved for display and are not written into the numeric history database. Persistent attribution contains opaque task/session/completion IDs, caller and host. Do not publish the runtime database, journals, configuration or logs. CSV retains its numeric usage format.
+
+## Validation and limits
+
+Local verification covers reordered concurrent completions, exact engine/model matching, conflict withholding, duplicate replay, legacy-ID upgrade without double counting, isolated async contexts and the loopback privacy boundary. Native acceptance additionally checks actual Hermes, DSH and remote Hermes requests against engine markers, imported controller rows and native task content. The isolated small-model engine tests validate instrumentation rather than model quality or performance. Unknown callers and uninstrumented engines remain unknown. TensorFold/LM Studio journal support is retained; neither engine's live integration is newly claimed by the llama.cpp acceptance.

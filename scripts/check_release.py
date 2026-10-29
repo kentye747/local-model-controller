@@ -7,7 +7,7 @@ PATTERNS={
     'personal absolute path':r'\x2fUsers\x2f(?!Shared(?:\x2f|\b))[^\s\x2f"\x27]+\x2f',
     'private LAN address':r'\b(?:192\.168\.[0-9]+\.[0-9]+|10\.[0-9]+\.[0-9]+\.[0-9]+)\b',
 }
-ALLOWED_SUFFIXES={'.py','.swift','.md','.json','.txt','.yml','.yaml','.svg','.png'}
+ALLOWED_SUFFIXES={'.py','.mjs','.swift','.md','.json','.txt','.yml','.yaml','.svg','.png'}
 def check():
     files=subprocess.check_output(['git','ls-files','-z'],cwd=ROOT).decode().split('\0')
     errors=[]

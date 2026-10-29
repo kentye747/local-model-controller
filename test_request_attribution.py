@@ -31,6 +31,35 @@ class AttributionTests(unittest.TestCase):
   def next_call(request):calls.append(request);return response
   self.assertIs(self.callback(request={'messages':['PRIVATE']},next_call=next_call,provider='lmstudio',task_id='task-1',session_id='session-1'),response)
   self.assertEqual(len(calls),1);self.assertNotIn('PRIVATE',(self.root/'request-attribution.jsonl').read_text())
+ def test_llama_native_marker_matches_task_even_when_completions_reorder(self):
+  from test_usage_history import timing
+  with contextlib.closing(h.connect(self.root)) as c:
+   h.register(c,[dict(id='hermes:model',model_id='model',engine='Hermes · llama.cpp')]);state={'models':{'8':'hermes:model'}}
+   for task in (1,2):
+    meta=dict(task=task,completion_id='completion-'+str(task),origin='Hermes',task_id='task-'+str(task),session_id='session-'+str(task),host='local')
+    h.llama_line(c,'[8] 0.01 I srv handle: LMC_REQUEST '+json.dumps(meta),state,100,100)
+    h.llama_line(c,timing('eval time',2,task*10,task),state,100,100)
+   for task in (2,1):
+    event=h.llama_line(c,timing('total time',2,task*10,task),state,100,100)
+    row=a.attach(c,event);self.assertEqual(row['task_id'],'task-'+str(task));self.assertEqual(row['output_tokens'],task*10)
+ def test_native_identity_upgrade_does_not_duplicate_legacy_event(self):
+  from test_usage_history import timing
+  with contextlib.closing(h.connect(self.root)) as c:
+   h.register(c,[dict(id='hermes:model',model_id='model',engine='Hermes · llama.cpp')]);state={'models':{'8':'hermes:model'}}
+   h.llama_line(c,timing('eval time',2,10),state,100,100);old=h.llama_line(c,timing('total time',2,10),state,100,100);h.insert(c,old)
+   meta=dict(task=1,completion_id='native-id',origin='Hermes',task_id='task',session_id='session',host='local')
+   h.llama_line(c,'[8] 0.01 I srv: LMC_REQUEST '+json.dumps(meta),state,100,100)
+   h.llama_line(c,timing('eval time',2,10),state,100,100);new=h.llama_line(c,timing('total time',2,10),state,100,100);h.insert(c,new);h.insert(c,new)
+   self.assertEqual(c.execute('SELECT count(*) FROM events').fetchone()[0],1);self.assertEqual(a.attach(c,new)['request_id'],'native-id')
+ def test_trace_headers_stay_local_and_preserve_original_request(self):
+  from integrations.hermes_trace_headers import register
+  class Context:
+   def register_middleware(_,kind,callback):self.callback=callback
+  register(Context());request={'extra_headers':{'Accept':'application/json'},'messages':['PRIVATE']};received=[]
+  def next_call(value):received.append(value);return 'unchanged'
+  ctx=dict(session_id='session',task_id='task',api_request_id='request',base_url='http://127.0.0.1:18434/v1')
+  self.assertEqual(self.callback(request=request,next_call=next_call,**ctx),'unchanged');self.assertNotIn('X-LMC-Origin',request['extra_headers']);self.assertEqual(received[-1]['extra_headers']['X-LMC-Session-Id'],'session')
+  self.callback(request=request,next_call=next_call,**{**ctx,'base_url':'https://cloud.invalid/v1'});self.assertIs(received[-1],request)
  def test_malformed_types_are_ignored(self):
   with contextlib.closing(h.connect(self.root)) as c:
    self.seed(c);self.write([{**self.row(),'model_id':{}},{**self.row(),'engine':[]},{**self.row(),'session_id':None}]);a.ingest(c,self.root)

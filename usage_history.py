@@ -78,11 +78,16 @@ def insert(c,event):
     values=[event['event_key'],event['model_key'],number(event.get('completed_at')),
             event.get('observed_at',time.time()),*[clean[k] for k in FIELDS],reason,
             event.get('source',''),event.get('time_basis','unknown')]
+    legacy=event.get('_legacy_event_key')
+    if legacy and legacy!=event['event_key']:
+        if not c.execute('SELECT 1 FROM events WHERE event_key=?',(event['event_key'],)).fetchone():
+            c.execute('UPDATE events SET event_key=? WHERE event_key=?',(event['event_key'],legacy))
+        else:c.execute('DELETE FROM events WHERE event_key=?',(legacy,))
     result=c.execute('INSERT OR IGNORE INTO events VALUES('+','.join('?' for _ in values)+')',values)
     return result.rowcount==1
 
 LOAD=re.compile(r"^\[(\d+)\]\s+[\d.]+.*?\bload_model:\s+loading model ['\"]([^'\"]+)['\"]")
-TIMING=re.compile(r'^\[(\d+)\]\s+([\d.]+).*?slot\s+print_timing:\s+id\s+(\d+)\s*\|\s*task\s+(\d+)\s*\|\s*(prompt eval time|eval time|total time)\s*=\s*([\d.]+)\s*ms\s*/\s*(\d+)\s*tokens')
+TIMING=re.compile(r'^(?:\[(\d+)\]\s+)?([\d.]+).*?slot\s+print_timing:\s+id\s+(\d+)\s*\|\s*task\s+(\d+)\s*\|\s*(prompt eval time|eval time|total time)\s*=\s*([\d.]+)\s*ms\s*/\s*(\d+)\s*tokens')
 
 def llama_line(c,line,state,at,observed):
     load=LOAD.search(line)
@@ -91,9 +96,18 @@ def llama_line(c,line,state,at,observed):
         key=historical_model(c,'Hermes',mid)
         state.setdefault('models',{})[load[1]]=key
         return None
+    identity=re.search(r'^(?:\[(\d+)\])?.*?LMC_REQUEST (\{.*\})$',line.strip())
+    if identity:
+        try:
+            meta=json.loads(identity[2]);rid=meta.get('completion_id');task=meta.get('task')
+            if isinstance(task,int) and isinstance(rid,str) and re.fullmatch(r'[A-Za-z0-9_.:-]{1,200}',rid):
+                entries=state.setdefault('requests',{});entries[(identity[1] or 'standalone')+':'+str(task)]=meta
+                while len(entries)>512:entries.pop(next(iter(entries)))
+        except (ValueError,TypeError):pass
+        return None
     m=TIMING.search(line)
     if not m:return None
-    pid,stamp,slot,task,kind,ms,tokens=m.groups();key=state.get('models',{}).get(pid)
+    pid,stamp,slot,task,kind,ms,tokens=m.groups();pid=pid or 'standalone';key=state.get('models',{}).get(pid)
     if not key:return None
     pending=state.setdefault('pending',{});identity=pid+':'+slot+':'+task
     row=pending.setdefault(identity,{'model_key':key})
@@ -105,7 +119,19 @@ def llama_line(c,line,state,at,observed):
     else:
         pending.pop(identity,None)
         if 'output_tokens' not in row:return None
-        row.update(event_key=digest('llama:'+key+':'+identity+':'+stamp),total_seconds=seconds,
+        meta=state.get('requests',{}).pop(pid+':'+task,{})
+        event_id=digest('llama:'+key+':'+identity+':'+stamp)
+        legacy_id=event_id
+        if meta:
+            event_id=digest('llama-native:'+key+':'+meta['completion_id']+':'+task)
+            c.execute('INSERT OR IGNORE INTO request_completions(event_key,request_id,caller_request_id) VALUES(?,?,?)',(event_id,meta['completion_id'],meta.get('caller_request_id')))
+            import request_attribution as attribution
+            if meta.get('origin') in ('Hermes','DSH') and all(isinstance(meta.get(k),str) and attribution.ID.fullmatch(meta[k]) for k in ('task_id','session_id')):
+                values=(event_id,key,meta['origin'],meta['task_id'],meta['session_id'],meta.get('host',''))
+                prior=c.execute('SELECT origin,task_id,session_id,host FROM request_attribution WHERE event_key=? AND model_key=?',values[:2]).fetchone()
+                if prior and tuple(prior)!=values[2:]:c.execute('UPDATE request_attribution SET conflict=1 WHERE event_key=? AND model_key=?',values[:2])
+                else:c.execute('INSERT OR IGNORE INTO request_attribution VALUES(?,?,?,?,?,?,0)',values)
+        row.update(event_key=event_id,_legacy_event_key=legacy_id,total_seconds=seconds,
                    completed_at=at,observed_at=observed,source='llama.cpp 请求计时',
                    time_basis='observed' if at is not None else 'unknown')
         return row
@@ -268,6 +294,17 @@ def capture(root,home,models,memory,max_bytes=LIMIT,sample_stats=True):
                 register(c,models);now=time.time()
                 paths=[(agent_home(home,'hermes')/'logs/llama-server.log','llama'),(home/'.local/share/tensorfold/logs/server.log','tf')]
                 paths.extend((p,'lm') for p in sorted((home/'.lmstudio/server-logs').glob('*/*.log'),key=lambda p:p.stat().st_mtime)[-32:])
+                if not c.execute("SELECT 1 FROM meta WHERE key='native_identity_backfill_v1'").fetchone():
+                    for path,kind in paths:
+                        if kind!='llama' or not path.exists():continue
+                        st=path.stat();identity=kind+':'+str(st.st_dev)+':'+str(st.st_ino)
+                        old=c.execute('SELECT state FROM cursors WHERE id=?',(identity,)).fetchone()
+                        if old:
+                            state=json.loads(old['state']);state.pop('pending',None);state.pop('requests',None)
+                            with path.open('rb') as f:
+                                f.seek(max(0,st.st_size-2*1024*1024));f.readline();offset=f.tell()
+                            c.execute('UPDATE cursors SET offset=?,backfill_until=?,state=? WHERE id=?',(offset,st.st_size,json.dumps(state),identity))
+                    c.execute("INSERT INTO meta VALUES('native_identity_backfill_v1','1')")
                 remaining=max_bytes
                 for path,kind in paths:
                     if not path.exists():continue
@@ -345,6 +382,8 @@ def report(root,model='all',days=0,now=None,offset=0):
             import request_attribution
             request_attribution.attach(c,r)
             r['id']=r.pop('event_key');r['model_name']=name_by_key.get(r['model_key'],r['model_key'])
+        from history_titles import attach_titles
+        attach_titles(recent, __import__('runtime_config').HOME)
         trend_days=7 if days in (1,7) else 30
         today=dt.datetime.fromtimestamp(now,TZ).date();daily={}
         for i in range(trend_days):

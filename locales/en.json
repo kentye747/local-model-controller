@@ -404,5 +404,8 @@
   "请求来源和任务未记录；统计来源不代表请求发起方。": "Request origin and task were not recorded; the statistics source is not the request origin.",
   "关联冲突": "Conflicting attribution",
   "会话标识": "Session ID",
-  "请求标识存在关联冲突，未显示任务。": "Conflicting request attribution; task withheld."
+  "请求标识存在关联冲突，未显示任务。": "Conflicting request attribution; task withheld.",
+  "请求标识": "Request ID",
+  "来源主机": "Source host",
+  "调用方请求标识": "Caller request ID"
 }

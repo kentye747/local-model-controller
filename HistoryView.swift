@@ -21,7 +21,7 @@ struct HistoryRecord:Decodable,Identifiable {
     let completedAt:Double?
     let observedAt:Double
     let inputTokens,cachedTokens,outputTokens,inputSeconds,outputSeconds,inputTps,outputTps,totalSeconds,queueSeconds,ttftSeconds:Double?
-    let requestOrigin,taskId,sessionId,requestHost,attributionStatus:String?
+    let requestOrigin,taskId,sessionId,requestHost,attributionStatus,taskTitle,requestId,callerRequestId:String?
     let finishReason:String?
     var sortTime:Double{completedAt ?? -.infinity}
     var sortInput:Double{inputTokens ?? -1}
@@ -218,7 +218,7 @@ struct HistoryView:View {
             TableColumn(L("时间"),value:\HistoryRecord.sortTime) {(e:HistoryRecord) in Text(e.completedAt.map{date($0)} ?? L("时间不详")).foregroundStyle(e.completedAt==nil ? .secondary : .primary)}.width(min:90,ideal:120)
             TableColumn(L("模型"),value:\HistoryRecord.modelName) {(e:HistoryRecord) in Text(e.modelName).lineLimit(1).help(e.modelName)}.width(min:100,ideal:150)
             TableColumn(L("请求来源")) {(e:HistoryRecord) in Text(e.requestOrigin ?? L(e.attributionStatus=="conflict" ? "关联冲突" : "未记录")).help(e.requestHost ?? L("历史统计没有记录请求发起方。"))}.width(min:75,ideal:90)
-            TableColumn(L("对应任务")) {(e:HistoryRecord) in Text(e.taskId ?? L("未记录")).lineLimit(1).help(e.taskId ?? L("历史统计没有记录可验证的任务关联。"))}.width(min:75,ideal:100)
+            TableColumn(L("对应任务")) {(e:HistoryRecord) in Text(e.taskTitle ?? e.taskId ?? L("未记录")).lineLimit(1).help(e.taskId ?? L("历史统计没有记录可验证的任务关联。"))}.width(min:75,ideal:100)
             TableColumn(L("输入"),value:\HistoryRecord.sortInput) {(e:HistoryRecord) in Text(integer(e.inputTokens)).monospacedDigit()}.width(min:50,ideal:68)
             TableColumn(L("输出"),value:\HistoryRecord.sortOutput) {(e:HistoryRecord) in Text(integer(e.outputTokens)).monospacedDigit()}.width(min:50,ideal:65)
             TableColumn(L("输出 tok/s"),value:\HistoryRecord.sortSpeed) {(e:HistoryRecord) in Text(decimal(e.outputTps)).monospacedDigit()}.width(min:65,ideal:85)
@@ -235,7 +235,10 @@ struct HistoryView:View {
         return VStack(alignment:.leading,spacing:5) {
             Text(L("统计来源")+"："+L(row.source)+" · "+basis).font(.system(size:11,weight:.medium))
             if let task=row.taskId,let origin=row.requestOrigin {
-                Text(origin+" · "+task).font(.system(size:11))
+                Text(origin+" · "+(row.taskTitle ?? task)).font(.system(size:11))
+                if let rid=row.requestId {Text(L("请求标识")+"："+rid).font(.system(size:11)).foregroundStyle(.secondary)}
+                if let rid=row.callerRequestId {Text(L("调用方请求标识")+"："+rid).font(.system(size:11)).foregroundStyle(.secondary)}
+                if let host=row.requestHost,!host.isEmpty {Text(L("来源主机")+"："+host).font(.system(size:11)).foregroundStyle(.secondary)}
                 if let session=row.sessionId {Text(L("会话标识")+"："+session).font(.system(size:11)).foregroundStyle(.secondary)}
             } else {Text(L(row.attributionStatus=="conflict" ? "请求标识存在关联冲突，未显示任务。" : "请求来源和任务未记录；统计来源不代表请求发起方。")).font(.system(size:11)).foregroundStyle(.secondary)}
             Text([speed,cache,first,queue].joined(separator:" · ")).font(.system(size:11)).monospacedDigit().foregroundStyle(.secondary)

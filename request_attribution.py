@@ -10,6 +10,8 @@ def event_key(engine,request_id):
 
 def ingest(c,root):
     c.execute('CREATE TABLE IF NOT EXISTS request_attribution(event_key TEXT,model_key TEXT,origin TEXT,task_id TEXT,session_id TEXT,host TEXT,conflict INTEGER DEFAULT 0,PRIMARY KEY(event_key,model_key))')
+    c.execute('CREATE TABLE IF NOT EXISTS request_completions(event_key TEXT PRIMARY KEY,request_id TEXT NOT NULL)')
+    if 'caller_request_id' not in [r[1] for r in c.execute('PRAGMA table_info(request_completions)')]:c.execute('ALTER TABLE request_completions ADD COLUMN caller_request_id TEXT')
     path=pathlib.Path(root)/'request-attribution.jsonl'
     if not path.exists():return
     info=path.lstat()
@@ -28,6 +30,7 @@ def ingest(c,root):
             if not all(isinstance(r.get(k),str) and ID.fullmatch(r[k]) for k in ('task_id','session_id','host')):continue
             matches=c.execute('SELECT id FROM models WHERE native_id=? AND engine LIKE ?', (r.get('model_id'),r['engine']+'%')).fetchall()
             if len(matches)!=1:continue
+            c.execute('INSERT OR IGNORE INTO request_completions(event_key,request_id) VALUES(?,?)',(key,r['request_id']))
             values=(key,matches[0][0],r['origin'],r['task_id'],r['session_id'],r['host'])
             old=c.execute('SELECT origin,task_id,session_id,host FROM request_attribution WHERE event_key=? AND model_key=?',values[:2]).fetchone()
             if old and tuple(old)!=values[2:]:
@@ -36,6 +39,9 @@ def ingest(c,root):
 
 def attach(c,row):
     match=c.execute('SELECT * FROM request_attribution WHERE event_key=? AND model_key=?',(row.get('event_key') or row.get('id'),row['model_key'])).fetchone()
+    completion=c.execute('SELECT request_id,caller_request_id FROM request_completions WHERE event_key=?',(row.get('event_key') or row.get('id'),)).fetchone()
+    row['request_id']=completion[0] if completion else None
+    row['caller_request_id']=completion[1] if completion else None
     row.update(request_origin=None,task_id=None,session_id=None,request_host=None,attribution_status='unrecorded')
     if match:
         if match['conflict']:row['attribution_status']='conflict'

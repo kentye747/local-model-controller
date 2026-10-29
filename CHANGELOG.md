@@ -1,3 +1,10 @@
+# 2.5.1
+
+- Attribute completed requests using native completion/task identity instead of model or time proximity.
+- Add loopback-only Hermes and DSH request identity adapters and a pinned llama.cpp b11840 metadata instrumentation patch.
+- Resolve exact native task titles for display on local and configured remote hosts without retaining conversation content in usage history.
+- Preserve unknown/conflicting attribution, legacy counters and existing configuration.
+
 # Changelog
 
 ## 2.5.0-preview.1 — 2026-10-28
