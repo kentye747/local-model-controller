@@ -7,6 +7,12 @@
 
 # Changelog
 
+## 2.5.2
+
+- Show current llama.cpp callers from native completion IDs, including default Hermes CLI calls and concurrent remote sessions. Caller identity no longer depends on process flags when native request metadata is available.
+- Keep unlabelled/conflicting active requests unknown, and remove completed requests from current activity. Task tooltips include the common completion ID.
+- Extend the optional pinned b11840 instrumentation with metadata-only active slot identities. Idle slots never expose the previous request as current.
+
 ## 2.5.0-preview.1 — 2026-10-28
 
 First public preview, extracted into a clean repository without private development history or runtime data.

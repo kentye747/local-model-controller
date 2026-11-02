@@ -104,7 +104,8 @@ struct ModelActivity: Decodable, Identifiable {
     let agent, sessionId, title, phase, source, confidence: String
     let host: String?
     let canOpen: Bool?
-    var id: String { agent+":"+sessionId }
+    let requestId: String?
+    var id: String { agent+":"+(host ?? "")+":"+sessionId+":"+(requestId ?? "") }
 }
 struct LocalModel: Decodable, Identifiable {
     let id, name, engine, modelId, baseUrl: String
@@ -480,14 +481,15 @@ struct MainView: View {
         }
     }
     private func taskHelp(_ a:ModelActivity) -> String {
+        let request=a.requestId.map { "\n"+L("请求标识")+"："+$0 } ?? ""
         if a.host == "mini" {
             if a.sessionId.hasPrefix("process-") {
                 return L("已确认 mini 上的 Hermes 调用进程；尚未取得有效会话名称。\n")+a.source
             }
             let agent=a.agent.replacingOccurrences(of:" · mini",with:"")
-            return L("此对话位于 mini，请在 mini 的 ")+agent+L(" 中按任务名查看。\n")+a.source+" · "+a.sessionId
+            return L("此对话位于 mini，请在 mini 的 ")+agent+L(" 中按任务名查看。\n")+a.source+" · "+a.sessionId+request
         }
-        return L("此任务由 Hermes CLI 运行；当前没有对应的桌面会话链接。\n")+a.source+" · "+a.sessionId
+        return (a.requestId == nil ? L("此任务由 Hermes CLI 运行；当前没有对应的桌面会话链接。\n") : "")+a.source+" · "+a.sessionId+request
     }
     @ViewBuilder private func taskLink(_ a:ModelActivity) -> some View {
         if a.canOpen == false {
@@ -507,7 +509,7 @@ struct MainView: View {
             }.font(.system(size:13)).foregroundStyle(Color.accentColor)
         }.buttonStyle(.plain).disabled(working || a.sessionId.isEmpty)
             .accessibilityLabel(L("打开 ")+a.agent+L(" 对话：")+a.title)
-            .help(L("点击打开 ")+a.agent+L(" 中的对应对话\n")+a.source+" · "+a.sessionId)
+            .help(L("点击打开 ")+a.agent+L(" 中的对应对话\n")+a.source+" · "+a.sessionId+(a.requestId.map { "\n"+L("请求标识")+"："+$0 } ?? ""))
     }
     private func agentList(_ d:Dashboard) -> some View {
         VStack(alignment:.leading,spacing:0) {
