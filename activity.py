@@ -203,13 +203,15 @@ def attach(models,home):
             try:results.append(f.result())
             except Exception:results.append(([],'部分 Agent 状态暂不可读'))
     activities=[a for rows,_ in results for a in rows];notes=[note for _,note in results if note]
+    from live_requests import activities as native_activities
+    native,unknown=native_activities(models,home)
     for m in models:
-        matches=[{k:v for k,v in a.items() if k!='model_key'} for a in activities if a['model_key']==m['id']]
+        matches=native.get(m['id'],[{k:v for k,v in a.items() if k!='model_key'} for a in activities if a['model_key']==m['id']])
         m['activities']=matches
         if m['state'] in ('stopped','offline'):m['activity_state']='unloaded';m['activity_note']='模型未加载'
         elif matches:
             m['activity_state']='live' if any(a['confidence']=='live' for a in matches) else 'unknown'
-            m['activity_note']='；'.join(notes)
+            m['activity_note']=('有请求，调用方未确认' if unknown.get(m['id']) else '') if m['id'] in native else '；'.join(notes)
         elif m.get('busy') is True:m['activity_state']='unknown';m['activity_note']='有请求，调用方未确认'
         elif notes:m['activity_state']='unknown';m['activity_note']='；'.join(notes)
         elif m.get('busy') is None:m['activity_state']='unknown';m['activity_note']='调用状态暂不可读'

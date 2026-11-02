@@ -139,15 +139,17 @@ def llama_snapshot():
         result=[]
         for m in models:
             value=m.get('status',{}).get('value','unknown')
-            busy=None
+            busy=None;live=None
             if value in ('loaded','ready'):
                 try:
                     slots=request(root[0],'/slots?'+urllib.parse.urlencode({'model':m['id']}),root[1])
                     busy=any(s.get('is_processing') for s in slots)
+                    from live_requests import current_requests
+                    live=current_requests(slots)
                 except Exception: pass
             # Weight bytes, not process RSS: wired Metal allocations do not appear fully in RSS.
             meta=m.get('meta',{})
-            result.append({'id':m['id'],'value':value,'busy':busy,'weight':meta.get('size',0),'vision':'image' in m.get('architecture',{}).get('input_modalities',[])})
+            result.append({'id':m['id'],'value':value,'busy':busy,'native_requests':live,'weight':meta.get('size',0),'vision':'image' in m.get('architecture',{}).get('input_modalities',[])})
         return {'models':result,'root':root[0],'error':''}
     except Exception: return {'models':[],'root':root[0],'error':'Hermes 运行时暂时无法读取'}
 
@@ -220,6 +222,7 @@ def models_snapshot(tf,llama,lm):
     for item in known:
         mid=item['id']; ready=item['value'] in ('loaded','ready'); loading=item['value']=='loading'
         m=compact_model('hermes:'+mid,mid,'Hermes · llama.cpp',mid,(llama['root'] or 'http://127.0.0.1:18434')+'/v1',CONFIG['llama']['context'],llama_load_budget(mid,item['weight']),item['vision'])
+        m['native_requests']=item.get('native_requests')
         unreadable=bool(llama.get('error') and llama['root'])
         m.update(state='unknown' if unreadable else 'ready' if ready else 'loading' if loading else 'stopped' if llama['root'] else 'offline',state_text='运行时状态未知' if unreadable else ('使用中' if item['busy'] else '已就绪') if ready else '加载中' if loading else '未加载' if llama['root'] else '请先打开 Hermes',busy=item['busy'],can_load=bool(llama['root']) and not unreadable and not ready and not loading,can_release=ready and not unreadable and item['busy'] is False,memory_bytes=item['weight'] if ready else None,memory_kind='权重估算',detail=str(m['context']//1024)+'K 配置上下文')
         models.append(m)
@@ -299,6 +302,7 @@ def recheck_unattributed_llama(models,home):
     for m in unknown:
         state=by_id.get(m['model_id'],{})
         if state.get('value') not in ('loaded','ready'):continue
+        m['native_requests']=state.get('native_requests')
         if state.get('busy') is False:
             m.update(busy=False,state_text='已就绪',can_release=True,
                      activity_state='idle',activity_note='暂无进行中的 Agent 任务')

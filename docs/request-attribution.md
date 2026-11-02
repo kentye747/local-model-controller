@@ -6,6 +6,12 @@ Request history can show the caller, task title/ID, native session, source host 
 
 `integrations/patch_llama_b11840.py` instruments upstream commit `36e36e63a54fc8f85b95e9c499a022b597e478dd`. It verifies the original server source hash before editing. Build with upstream CMake; the result emits one `LMC_REQUEST` JSON metadata marker alongside native task assignment. The marker relates the returned completion ID, internal task number and allowlisted caller/session/task/host headers. It never logs request bodies, prompts, responses or credentials. Existing timing lines keep their original meaning. This is a local instrumentation patch, not an upstream llama.cpp release; keep original binaries for rollback. Updating the managed engine can replace the instrumentation, in which case new request attribution becomes unavailable until an adapted build is verified.
 
+## Current requests
+
+The expanded b11840 patch also returns `request_identity` on a slot while its native task is processing. It contains the same completion/caller/task/session/host IDs as the history marker. Idle slots do not return the previous identity. The controller keeps only this allowlisted metadata, replaces process-based request candidates with exact native callers, and resolves titles for display from the original host. Unlabelled or conflicting requests remain explicitly unknown. Multiple current requests in one session retain separate completion IDs.
+
+This requires the expanded engine build as well as the controller update. The historical log association alone does not provide current request attribution. Request parameters, prompts, responses and credentials are neither copied into the dashboard nor persisted by this reader.
+
 ## Hermes
 
 Install `integrations/hermes_trace_headers.py` as `__init__.py` in a native user plugin directory, with a `plugin.yaml` manifest, and enable it with Hermes's normal plugin management. It registers `llm_execution` middleware and adds native task/session/request IDs only for loopback destinations. It calls downstream once and leaves message bodies and responses unchanged. Enable/reload each intended profile; merely placing a file or listing it as enabled is not acceptance. No cloud destination receives these tracing headers.
